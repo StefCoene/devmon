@@ -1,0 +1,4 @@
+vendor	: SHENZHEN
+model	: TL-SG3424
+snmpver	: 2
+sysdesc : 16-Port Gigabit Smart Switch
