@@ -174,15 +174,22 @@ sub snmp_query {
    my ($snmp_input) = @_;
    my $active_forks = 0;
 
-   # Check the status of any currently running forks
-   &check_forks();
-
    my @devices = keys %{$snmp_input};
 
+   # No devices to check? -> return
+   if ( $g{numdevs} eq "-1" ) {
+      return ;
+   }
+
    # Make sure $g{numdevs} is not 0
+   # TODO: why not always set $g{numdevs} = $#devices?
    if ( $g{numdevs} eq "0" ) {
       $g{numdevs} = $#devices ;
+      $g{numdevs} ++ ;
    }
+
+   # Check the status of any currently running forks
+   &check_forks();
 
    # Start forks if needed
    #fork_queries() if keys %{$g{forks}} < $g{numforks};
