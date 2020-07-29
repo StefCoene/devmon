@@ -16,18 +16,39 @@ I hope that this will inspire the original author for ideas how devmon can be im
 Stef Coene
 
 =====================================================================
+=======
+=====================================================================
+Devmon VERSION 0.19.06.08, fork at SF version 0.3.1-beta1 r256
+======================================================================
 
 SEE END OF FILE for current STATUS and ROADMAP! 
-THIS IS NOT AN OFFICIAL VERSION form the original developers:
-- Look at SourceForge version
-- Previous modifications (2018) were reported to be less stable than the SF one
+THIS IS NOT AN OFFICIAL VERSION from the original developers:
+- Look at SourceForge version for it 
+- Previous modifications (2018) of this version were reported to be less
+  stable than the SF one, but only template were modify at that time .....
 - Use it at your one risk !
-- Cisco templates have been largly modifyed to fit my own needs
-THIS VERSION SHOULD BE AS STABLE AS THE SOURCEFORGE ONE IF YOU DONT USE THE 
-NEW TEMPLATES, but you will not benefit of all the work done !
+- Cisco templates are modifyed to fit my own needs
 
+This devmon version should MORE STABLE AS THE SOURCEFORGE ONE ! 
+The most stable is the latest branch version: Now it is 0.19.06.08
 
-Devmon, version 0.3.1-beta1, based on SF r256: VERSION 0.3.1b1.256.1
+Please FORK it if you can, so you/we will be able to add your
+contributions / template easily  !!
+
+2019.05 Bruno Manzoni
+
+======================================================================
+
+UPDATE included from Stef Coene                                                                     
+                                                                                           
+I changed this version of devmon and did the following:                                    
+- remove all refererences bb/hobbit/BigBrother                                             
+- use Getopt::Long for command line parsing                                                
+- use Sys::Hostname to get the hostname                                                    
+                                                                                           
+======================================================================                                                                                           
+======================================================================
+                         Original ReadMe
 =====================================================================
 
   This program is free software; you can redistribute it and/or modify
@@ -160,47 +181,25 @@ $Id: README 190 2011-01-14 13:32:06Z buchanmilne $
 
 VERSION 0.3.1b1.256.1
 
-This is a work in progress, changes can occur without notice
-but is should be the most stable release....
+This is a work in progress, changes can occur without notice but is should be the most stable release....
 
 Thanks for all the work done and also all patch/ideas submitted !
 Special thanks to W. Nelis and the devmon admins and devs !
 Please feel free to fork again and ask for support !
 
 ALL PATCH FROM SOURCEFORGE ARE INTERGRATED IN THIS RELEASE
-This fork is an friendly one (Yes, I think it is possible ! ),
-mainly to push devmon to move again as I think it is great product with
-a huge potetntial. Xymon is also a amazing product ! I used it for years.
-A cooperation with original devs is desired and asked. To help the 
-reinjection of this code or parts of it to the original one, no major  
-code restructuration was done: you can still easely compare both codes,
-but this will limit the possible improvements. I am waiting for your feedback
-on how to continue. 
+This fork is an friendly one (Yes, I think it is possible ! ), mainly to push devmon to move again as I think it is great product with
+a huge potential. Xymon is also a amazing product ! I used it for years. A cooperation with original devs is desired and asked. To help the 
+reinjection of this code or parts of it to the original one, no major  code restructuration was done: you can still easely compare both codes,
+but this will limit the possible improvements. I am waiting for your feedback on how to continue. 
 
 FEEDBACK ALWAYS APPRECIATED
- I know we are in a stressing world and sometime when we expressed ourself to 
- improve things, the message is not understood: This is not my case: I will
+ I know we are in a stressing world and sometime when we expressed ourself to improve things, the message is not understood: This is not my case: I will
  always thanks you for your remarks even the message is not clear ! 
  So do not hesitate and use the github ISSUES to communicate even it is not a bug !
 
-Remarks on the oid term: 
- The use of the term 'oid' sometimes confusing and it is used also in conjunction with
- the terms 'index' or 'values'. In a leaf type oid, only on result is expexted so there
- is no need to have an index notion, but we could have one, even it is not relevant 
- - Mathematicaly: snmp{oid}=oid_value{oid_index}=oid_value
- In a branch an oid each leaf have an index (ithe form is ususally a integer,
- but could be integer dot integer dot .... same as the the oid itself 
- - Mathematicaly: snmp{oid}=oid_value(s){oid_index(es)} 
- For simplicity the term oid (even it is not) is also used after being transformed
- - Mathematicaly: oidX=transform(oidY) or oidX = snmp(oidY)
-                 
- Conclusion: the oid term is use in 3 contexts: 
- - "oid" standalone term is the what it is polled through snmp or transformed
- - "oid indexes" are the the indexes returned by snmp
- - "oid values" are the results corresponding each to an index
- I will try to alway be precise on this as this is needed to have a complete
- understanding. 
-
+REMARK ON THE OID TERM 
+As it "key" concept and as it is also extended in some way I created a section in the /devmon/docs/TEMPLATE to explain it more clearly: a must read..
 
 Major improvement
 - Improved User-Friendliness
@@ -222,7 +221,6 @@ Major improvement
       - Display a table based on sorted oid values 
       - Works in conjonction with the 'SORT' transform (see below: 
         new transforms) 
-       
   - Runtime graph for devmon Xymon test 'dm' (thanks to W. Nelis)
     to check the performance through the time
 
@@ -236,6 +234,10 @@ Major improvement
       (Transforms used in cisco-isr template are tested)
     - Original errors msg and val are propagated in normal mode
     - Original errors val are accumulated and propagate in debug mode
+
+- Multiple error messages and threshold for an oid color
+    - We can have now multiple time the same color for an oid in the thresholds file
+      with different messages
  
 - New transforms:
   WARNING: THE USE OF THIS TRANSFORM BREAKS COMPATIBILTY WITH 
@@ -286,6 +288,22 @@ Minor bugs resolved
 - Optimized regexp for speed
 - Continuation char working on multi-lines
 - Deleted threshold remain undeleted
+
+Version details
+0.3.1 Beta r256.1 is the first version with keeping most format from the source in sourceforge to easely reinject this code or part of 
+it to the original one
+BREAKING CHANGES
+ - The result of a division by zero was replaced by 0, but this is not 0. This now replaced by NaN. To remain green you should add 
+   to your threshold file the following:
+   {oid} : green : NaN :
+   or if you like the clear color (like me)
+   {oid} : clear : NaN :
+   There is a script to modify your template in devmon/extra/add_NaN_thresholds: all template with this version are already updated
+   This will also breaks also the BEST transform results as they will be "clear" and not green and they will raise an alamr (Current WIP)
+     Thanks to Stef Coene for its feedback
+ - Devmon now send runtime data to Xymon to be graphed: look at the quick installation guide in the folder /devmon/extra
+0.3.1 Beta r256.2 Major code cleaning (thank to Stef Coene)
+0.3.2 Beta r256.3 After code cleaning - Current Master branch
 
 ===========================================================================================================================================
 

@@ -65,16 +65,33 @@ sub poll_devices {
 
    # Query our Xymon server for device reachability status
    # we don't want to waste time querying devices that are down
-   do_log("Getting device status from Xymon at $g{dispserv}",1);
+   do_log("Getting device status from Xymon at " . $g{dispserv} . ":" . $g{dispport},1);
    %{$g{xymon_color}} = ();
-   foreach (`$ENV{XYMON} $g{dispserv} "xymondboard test=^$g{pingcolumn}\$ fields=hostname,color,line1"`) {
-      my ($device,$color,$line1) = split /\|/;
-      my ($l1col) = ($line1 =~ /^(\w+)/);
-      do_log("DEBUG SNMP: $device has Xymon status $color ($l1col)",2) if $g{debug};
-      $g{xymon_color}{$device} = $color ne "blue" && $color || $l1col;
+   my $sock = IO::Socket::INET->new (
+      PeerAddr => $g{dispserv},
+      PeerPort => $g{dispport},
+      Proto    => 'tcp',
+      Timeout  => 10,
+   );
+   if(defined $sock) {
+      #print $sock "xymondboard test=^conn\$ fields=hostname,color,line1";
+      # Ask xymon for all test on all devices
+      print $sock "xymondboard fields=hostname,color,line1";
+      shutdown($sock, 1);
+      while(<$sock>) {
+         my ($device,$color,$line1) = split /\|/;
+         chomp $line1 and do_log("DEBUG SNMP: $device has Xymon status $color and msg $line1",2) if $g{debug};
+         if ($line1 =~ /not ok/i and !defined $g{xymon_color}{device}) {
+            $g{xymon_color}{$device} = $color; 
+            next;
+         } elsif ($line1 =~ /ok/i) {
+            $g{xymon_color}{$device} = $color;
+         }   
+      }
    }
 
    # Build our query hash
+   $g{numsnmpdevs} = $g{numdevs};
    QUERYHASH: for my $device (sort keys %{$g{dev_data}}) {
 
       # Skip this device if we weren't able to reach it during update_indexes
@@ -82,9 +99,13 @@ sub poll_devices {
 
       # Skip this device if we are running a Xymon server and the
       # server thinks that it isn't reachable
-      if(defined $g{xymon_color}{$device} and
-         $g{xymon_color}{$device} ne 'green') {
-         do_log("$device has a non-green Xymon status, skipping SNMP.", 2);
+      if(!defined $g{xymon_color}{$device}) {
+         do_log("$device hasn't any Xymon tests skipping SNMP: add at least one! conn, ssh,...");
+         --$g{numsnmpdevs};
+         next QUERYHASH;
+      } elsif  ($g{xymon_color}{$device} ne 'green') {
+         do_log("$device has a non-green Xymon status, skipping SNMP.");
+         --$g{numsnmpdevs}; 
          next QUERYHASH;
       }
 
@@ -101,11 +122,11 @@ sub poll_devices {
          $tests = join ',', keys %{$g{templates}{$vendor}{$model}{tests}} ;
       }
 
-      $snmp_input{$device}{ip}   = $g{dev_data}{$device}{ip};
-      $snmp_input{$device}{ver}  = $g{dev_data}{$device}{ver};
-      $snmp_input{$device}{cid}  = $g{dev_data}{$device}{cid};
-      $snmp_input{$device}{port} = $g{dev_data}{$device}{port};
-      $snmp_input{$device}{dev}  = $device;
+      $snmp_input{$device}{ip}       = $g{dev_data}{$device}{ip};
+      $snmp_input{$device}{ver}      = $g{dev_data}{$device}{ver};
+      $snmp_input{$device}{cid}      = $g{dev_data}{$device}{cid};
+      $snmp_input{$device}{port}     = $g{dev_data}{$device}{port};
+      $snmp_input{$device}{dev}      = $device;
 
       do_log("Querying $device for tests $tests", 3);
 
@@ -124,8 +145,8 @@ sub poll_devices {
          # Determine what type of snmp version we are using
          # Use the highest snmp variable type we find amongst all our tests
          $snmp_input{$device}{ver} = $snmpver if
-            !defined $snmp_input{$device}{ver} or
-            $snmp_input{$device}{ver} < $snmpver;
+         !defined $snmp_input{$device}{ver} or
+         $snmp_input{$device}{ver} < $snmpver;
 
          # Go through our oids and add them to our repeater/non-repeater hashs
          for my $oid (keys %{$tmpl->{oids}}) {
@@ -174,30 +195,24 @@ sub snmp_query {
    my ($snmp_input) = @_;
    my $active_forks = 0;
 
-   my @devices = keys %{$snmp_input};
-
-   # No devices to check? -> return
-   if ( $g{numdevs} eq "-1" ) {
-      return ;
-   }
-
-   # Make sure $g{numdevs} is not 0
-   # TODO: why not always set $g{numdevs} = $#devices?
-   if ( $g{numdevs} eq "0" ) {
-      $g{numdevs} = $#devices ;
-      $g{numdevs} ++ ;
-   }
-
    # Check the status of any currently running forks
    &check_forks();
+   
+   # If we are in the readbbhost phase the numsnmpdev is not discoverd 
+   # the number of snmp device is normally the number of device that have at 
+   # least one successfull Xymon test. As we skip this discovering phase
+   # we define it as the number of devices if it is not defined!
+   $g{numsnmpdevs} = $g{numdevs} if (!defined $g{numsnmpdevs});
 
    # Start forks if needed
-   #fork_queries() if keys %{$g{forks}} < $g{numforks};
-   fork_queries() if (keys %{$g{forks}} < $g{numforks} && keys %{$g{forks}} < $g{numdevs} ) ;
+   fork_queries() if ((keys %{$g{forks}} < $g{numforks} && keys %{$g{forks}} < $g{numsnmpdevs}) or (keys %{$g{forks}} == 0 and $g{numsnmpdevs} < 2 )) ;
 
    # Now split up our data amongst our forks
+   my @devices = keys %{$snmp_input};
+
    while(@devices or $active_forks) {
       foreach my $fork (sort {$a <=> $b} keys %{$g{forks}}) {
+
          # First lets see if our fork is working on a device
          if(defined $g{forks}{$fork}{dev}) {
             my $dev = $g{forks}{$fork}{dev};
@@ -253,7 +268,7 @@ sub snmp_query {
                   my $fatal = $returned{error}{$error};
                   do_log("ERROR: $error", 2);
 
-                  # Incrememnt our fail counter if the query died fatally
+                  # Increment our fail counter if the query died fatally
                   ++$g{fail}{$dev} if $fatal;
                }
                delete $returned{error};
@@ -439,8 +454,7 @@ sub fork_queries {
    $g{dbh}->disconnect() if defined $g{dbh} and $g{dbh} ne '';
 
    # We should only enter this loop if we are below numforks
-   #    while(keys %{$g{forks}} < $g{numforks}) {
-   while(keys %{$g{forks}} < $g{numforks} && keys %{$g{forks}} < $g{numdevs}) {
+   while((keys %{$g{forks}} < $g{numforks} && keys %{$g{forks}} < $g{numsnmpdevs}) or (keys %{$g{forks}} == 0 and  $g{numsnmpdevs} < 2))  {
       my $num = 1;
       my $pid;
 
@@ -552,23 +566,32 @@ sub fork_sub {
          next DEVICE;
       }
 
-      # Do some basic checking
+      # Get SNMP variables
+      my $snmp_cid  = $data_in{cid};
+      my $snmp_port = $data_in{port} || 161; # Default to 161 if not specified
+      my $snmp_ver  = $data_in{ver};
+      my $ip        = $data_in{ip};
+      my $dev       = $data_in{dev};
+      my $retries   = $data_in{retries};
+      my $timeout   = $data_in{timeout};
+
+      my $host = (defined $ip and $ip ne '') ? $ip : $dev;
+
+      # Check SNMP settings
       if(!defined $data_in{nonreps} and !defined $data_in{reps}) {
          my $error_str =
-         "No oids to query for $data_in{dev}, skipping";
+         "No oids to query for $dev, skipping";
          $data_out{error}{$error_str} = 1;
          send_data($sock, \%data_out);
          next DEVICE;
-      } elsif(!defined $data_in{ver}) {
+      } elsif(!defined $snmp_ver) {
          my $error_str =
-         "No snmp version found for $data_in{dev}";
+         "No snmp version found for $dev";
          $data_out{error}{$error_str} = 1;
          send_data($sock, \%data_out);
          next DEVICE;
       }
 
-      #print "%data_in:\n" ;print Data::Dumper->Dumper(\%data_in) ;
-      #
       # Get SNMP variables
       my %snmpvars ;
       $snmpvars{RemotePort} = $data_in{port} || 161; # Default to 161 if not specified
@@ -577,9 +600,6 @@ sub fork_sub {
       $snmpvars{Retries}    = $data_in{retries} ;
 
       $snmpvars{UseNumeric} = 1 ;
-
-      # Establish SNMP session
-      my $session;
 
       if($data_in{ver} eq '1') {
          $snmpvars{Version} = 1 ;
@@ -603,8 +623,9 @@ sub fork_sub {
          next DEVICE;
       }
 
+      # Establish SNMP session
       #print "%snmpvars:\n" ;print Data::Dumper->Dumper(\%snmpvars) ;
-      $session = new SNMP::Session(%snmpvars) ;
+      my $session = new SNMP::Session(%snmpvars) ;
 
       foreach my $oid (sort keys %{$data_in{nonreps}}) {
          next if defined $data_out{error} ;

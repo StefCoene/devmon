@@ -1,0 +1,10 @@
+<b>{UpTime.color}Uptime        : {UpTimeTxt}</b>{UpTime.msg}
+<b>{sysBootReason.color}Reboot reason :</b> {sysBootReason.msg}
+   <b>{sysReloadReason.color}Message    : {sysReloadReason}</b> {sysReloadReason.msg}
+   <font size=4>&#9201;&#65039;</font> <b>Timer      :</b> {sysBootReasonDelayTimerEnable.msg}
+
+{sysDescr}
+
+TABLE:rrd(DS:ds0:cpmCPUTotal5minRev:GAUGE; )
+CPU|Load
+{CPUIndex}|{cpmCPUTotal5minRev.color}{cpmCPUTotal5minRev}%{cpmCPUTotal5minRev.errors}
