@@ -1462,6 +1462,7 @@ sub read_hosts_cfg {
             $new_hosts{$host}{port}   = $old_hosts{$host}{port};
             $new_hosts{$host}{vendor} = $vendor;
             $new_hosts{$host}{model}  = $model;
+            $new_hosts{$host}{ver}    = $old_hosts{$host}{ver};
 
             --$hosts_left;
             do_log("Discovered $host as a $vendor $model with sysdesc=$sysdesc",2);
@@ -1541,6 +1542,7 @@ sub read_hosts_cfg {
                   %{$new_hosts{$host}}        = %{$hosts_cfg{$host}};
                   $new_hosts{$host}{vendor} = $vendor;
                   $new_hosts{$host}{model}  = $model;
+                  $new_hosts{$host}{ver}    = $snmpver;
                   --$hosts_left;
 
                   # If they are an old host, they probably changed models...
@@ -1635,6 +1637,7 @@ sub read_hosts_cfg {
                   $new_hosts{$host}{cid}    = $cid;
                   $new_hosts{$host}{vendor} = $vendor;
                   $new_hosts{$host}{model}  = $model;
+                  $new_hosts{$host}{ver}    = $snmpver;
                   --$hosts_left;
 
                   # If they are an old host, they probably changed models...
