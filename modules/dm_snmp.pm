@@ -594,6 +594,7 @@ sub fork_sub {
 
       # Get SNMP variables
       my %snmpvars ;
+      $snmpvars{Device}     = $dev ;
       $snmpvars{RemotePort} = $data_in{port} || 161; # Default to 161 if not specified
       $snmpvars{DestHost}   = (defined $data_in{ip} and $data_in{ip} ne '') ? $data_in{ip} : $data_in{dev} ;
       $snmpvars{Timeout}    = $data_in{timeout} * 1000000 ;
@@ -611,7 +612,7 @@ sub fork_sub {
 
       } elsif($data_in{ver} eq '3') {
          $snmpvars{Version} = 3 ;
-         # We store the security name for v3 als in cid so we keep the same data format
+         # We store the security name for v3 also in cid so we keep the same data format
          $snmpvars{SecName}    = $data_in{cid} if defined $data_in{cid} ;
 
       # Whoa, we don't support this version of SNMP
@@ -624,42 +625,50 @@ sub fork_sub {
       }
 
       # Establish SNMP session
-      #print "%snmpvars:\n" ;print Data::Dumper->Dumper(\%snmpvars) ;
       my $session = new SNMP::Session(%snmpvars) ;
 
-      foreach my $oid (sort keys %{$data_in{nonreps}}) {
-         next if defined $data_out{error} ;
+      if ( $session ) {
+         do_log("SNMP session started: Device=$snmpvars{Device}, RemotePort=$snmpvars{RemotePort}, DestHost=$snmpvars{DestHost}, Version=$data_in{ver}",1);
 
-         my $vb = new SNMP::Varbind([".$oid"]);
-         my $val = $session->get($vb);
-         if ( $val ) {
-            $data_out{$oid}{val}  = $val;
-            $data_out{$oid}{time} = time;
-         } else {
-            $data_out{error}{$session->{ErrorStr}} = 1;
-            last ;
+         foreach my $oid (sort keys %{$data_in{nonreps}}) {
+            next if defined $data_out{error} ;
+
+            my $vb = new SNMP::Varbind([".$oid"]);
+            my $val = $session->get($vb);
+            if ( $val ) {
+               $data_out{$oid}{val}  = $val;
+               $data_out{$oid}{time} = time;
+            } else {
+               $data_out{error}{$session->{ErrorStr}} = 1;
+               last ;
+            }
          }
-      }
 
-      foreach my $oid (sort keys %{$data_in{reps}}) {
-         next if defined $data_out{error} ;
+         foreach my $oid (sort keys %{$data_in{reps}}) {
+            next if defined $data_out{error} ;
 
-         my $vb = new SNMP::Varbind([".$oid"]);
-         my $val ;
-         # for (INITIALIZE; TEST; STEP) {
-         for ( $val = $session->getnext($vb);
-               $vb->tag eq ".$oid" and not $session->{ErrorNum} ;
-               $val = $session->getnext($vb)
-            ) {
-            $data_out{$oid}{val}{$vb->iid} = $val;
-            $data_out{$oid}{time}{$vb->iid} = time;
-            $data_out{maxrep}{$oid} ++ ;
+            my $vb = new SNMP::Varbind([".$oid"]);
+            my $val ;
+            # for (INITIALIZE; TEST; STEP) {
+            for ( $val = $session->getnext($vb);
+                  $vb->tag eq ".$oid" and not $session->{ErrorNum} ;
+                  $val = $session->getnext($vb)
+               ) {
+               $data_out{$oid}{val}{$vb->iid} = $val;
+               $data_out{$oid}{time}{$vb->iid} = time;
+               $data_out{maxrep}{$oid} ++ ;
+            }
          }
-      }
 
-      #print "%data_out:\n" ;print Data::Dumper->Dumper(\%data_out) ;
-      #
-      send_data($sock, \%data_out);
+         if ( $data_out{error} ) {
+            foreach my $error (keys %{$data_out{error}}) {
+               do_log("SNMP ERROR: $error",1);
+            }
+         }
+         send_data($sock, \%data_out);
+      } else{
+         do_log("SNMP session NOT started: Device=$snmpvars{Device}, RemotePort=$snmpvars{RemotePort}, DestHost=$snmpvars{DestHost}, Version=$data_in{ver}",1);
+      }
    }
 }
 
