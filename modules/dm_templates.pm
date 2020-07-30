@@ -908,7 +908,7 @@ sub read_transforms_file {
 }
 sub calc_template_test_deps {
    my $tmpl           = $_[0]; 
-   my @oids           = keys $tmpl->{oids};
+   my @oids           = keys %{$tmpl->{oids}};
    my $deps           = {} ;
    my $infls          = {} ;
    my %trans_data          ;   #for sort from W. Nelis
@@ -1068,7 +1068,7 @@ sub sort_oids2 {
    my $node;
 
    # Precompute number of deps
-   foreach $node (keys $deps) {
+   foreach $node (keys %{$deps}) {
       $nb_deps{$node} = keys %{$deps->{$node}}; 
       $nb_infls{$node}  = keys %{$infls->{$node}};
    }
