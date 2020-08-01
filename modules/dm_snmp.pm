@@ -122,10 +122,7 @@ sub poll_devices {
          $tests = join ',', keys %{$g{templates}{$vendor}{$model}{tests}} ;
       }
 
-      $snmp_input{$device}{ip}       = $g{dev_data}{$device}{ip};
-      $snmp_input{$device}{ver}      = $g{dev_data}{$device}{ver};
-      $snmp_input{$device}{cid}      = $g{dev_data}{$device}{cid};
-      $snmp_input{$device}{port}     = $g{dev_data}{$device}{port};
+      %{$snmp_input{$device}}       = %{$g{dev_data}{$device}};
       $snmp_input{$device}{dev}      = $device;
 
       do_log("Querying $device for tests $tests", 3);
@@ -614,6 +611,12 @@ sub fork_sub {
          $snmpvars{Version} = 3 ;
          # We store the security name for v3 also in cid so we keep the same data format
          $snmpvars{SecName}    = $data_in{cid} if defined $data_in{cid} ;
+
+         $snmpvars{SecLevel}  = $data_in{SecLevel}  if defined $data_in{SecLevel};
+         $snmpvars{AuthProto} = $data_in{AuthProto} if defined $data_in{AuthProto};
+         $snmpvars{AuthPass}  = $data_in{AuthPass}  if defined $data_in{AuthPass};
+         $snmpvars{PrivProto} = $data_in{PrivProto} if defined $data_in{PrivProto};
+         $snmpvars{PrivPass}  = $data_in{PrivPass}  if defined $data_in{PrivPass};
 
       # Whoa, we don't support this version of SNMP
       } else {

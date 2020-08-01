@@ -38,6 +38,8 @@ $Data::Dumper::Sortkeys = 1 ; # Sort the keys in the output
 $Data::Dumper::Deepcopy = 1 ; # Enable deep copies of structures
 $Data::Dumper::Indent = 1 ;   # Output in a reasonable style (but no array indexes)
 
+use Tiny;
+
 # Load initial program values; only called once at program init
 sub initialize {
    autoflush STDOUT 1;
@@ -47,6 +49,7 @@ sub initialize {
       'version'       => $_[0], # set in main script now
       'homedir'       => $FindBin::Bin,
       'configfile'    => "$FindBin::Bin/devmon.cfg",
+      '3'             => "$FindBin::Bin/devmonV3.cfg",
       'dbfile'        => "$FindBin::Bin/hosts.db",
       'daemonize'     => 1,
       'initialized'   => 0,
@@ -228,12 +231,6 @@ sub initialize {
          'case'    => 0 },
    );
 
-   # Make sure we are started with correct environment
-   if ( defined $ENV{XYMSRV} and $ENV{XYMSRV} ne '' ) {
-   } else {
-      log_fatal("XYMSRV variable not found, make sure xymonserver.cfg is loaded: start from tasks.cfg or prepend with xymoncmd", 0);
-   }
-
    # Set up our signal handlers
    $SIG{INT} = $SIG{QUIT} = $SIG{TERM} = \&quit;
    $SIG{HUP} = \&reopen_log;
@@ -245,6 +242,7 @@ sub initialize {
    GetOptions (
          "verbose+"        => \$g{verbose},
          "configfile=s"    => \$g{configfile},
+         "3=s"             => \$g{configfileV3},
          "dbfile=s"        => \$g{dbfile},
          "foreground"      => \$g{foreground},
          "print_msg"       => \$g{print_msg},
@@ -1215,6 +1213,12 @@ sub read_hosts_cfg {
          "$num_descs sysdescs & $num_temps templates",0);
    }
 
+   # Read SNMP V3 config file
+   my $configV3 ;
+   if ( -f $g{'configfileV3'} ) {
+     $configV3 = Config::Tiny->read( $g{'configfileV3'}, 'utf8' );
+   }
+
    do_log("SNMP querying all hosts in hosts.cfg file, please wait...",1);
 
    # Now open the hosts.cfg file and read it in
@@ -1376,6 +1380,13 @@ sub read_hosts_cfg {
                $hosts_cfg{$host}{ip}    = $ip;
                $hosts_cfg{$host}{tests} = $tests;
 
+               # Version 3 config merge
+               if ( defined $configV3->{$host} ) {
+                  foreach my $key ("SecName", "SecLevel", "AuthProto", "AuthPass", "PrivProto", "PrivPass") {
+                     $hosts_cfg{$host}{$key} = $configV3->{$host}{$key} if defined $configV3->{$host}{$key} ;
+                  }
+               }
+
                # Incremement our host counter, used to tell if we should bother
                # trying to query for new hosts...
                ++$hosts_left;
@@ -1408,12 +1419,11 @@ sub read_hosts_cfg {
       # If their template doesn't exist any more, skip 'em
       next if !defined $g{templates}{$vendor}{$model};
 
-      my $snmpver = $g{templates}{$vendor}{$model}{snmpver};
-      $snmp_input{$host}{ip}     = $hosts_cfg{$host}{ip};
-      $snmp_input{$host}{cid}    = $old_hosts{$host}{cid};
-      $snmp_input{$host}{port}   = $old_hosts{$host}{port};
-      $snmp_input{$host}{dev}    = $host;
-      $snmp_input{$host}{ver}    = $snmpver;
+      # Use version from config file and not from template
+      #my $snmpver = $g{templates}{$vendor}{$model}{snmpver};
+      #$snmp_input{$host}{ver}    = $snmpver;
+      %{$snmp_input{$host}} = %{$hosts_cfg{$host}};
+      $snmp_input{$host}{dev} = $host;
 
       # Add our sysdesc oid
       $snmp_input{$host}{nonreps}{$sysdesc_oid} = 1;
@@ -1495,9 +1505,7 @@ sub read_hosts_cfg {
             next if defined $new_hosts{$host};
 
             # Throw together our query data
-            $snmp_input{$host}{ip}     = $hosts_cfg{$host}{ip};
-            $snmp_input{$host}{cid}    = $hosts_cfg{$host}{cid};
-            $snmp_input{$host}{port}   = $hosts_cfg{$host}{port};
+            %{$snmp_input{$host}} = %{$hosts_cfg{$host}};
             $snmp_input{$host}{dev}    = $host;
             $snmp_input{$host}{ver}    = $snmpver;
 
@@ -1586,8 +1594,7 @@ sub read_hosts_cfg {
             # Don't query this host if we already have succesfully done so
             next if defined $new_hosts{$host};
 
-            $snmp_input{$host}{ip}     = $hosts_cfg{$host}{ip};
-            $snmp_input{$host}{port}   = $hosts_cfg{$host}{port};
+            %{$snmp_input{$host}} = %{$hosts_cfg{$host}};
             $snmp_input{$host}{cid}    = $cid;
             $snmp_input{$host}{dev}    = $host;
             $snmp_input{$host}{ver}    = $snmpver;
@@ -1858,7 +1865,7 @@ sub read_hosts_cfg {
          }
          $excepts =~ s/,$//;
          print HOSTFILE "$host\e$ip\e$vendor\e$model\e$tests\e$cid\e$thresholds\e$excepts\e$ver\n";
-         do_log ("$host\e$ip\e$vendor\e$model\e$tests\e$cid\e$thresholds\e$excepts\e$ver");
+         do_log ("$host $ip $vendor $model $tests $cid $thresholds $excepts $ver");
       }
 
       close HOSTFILE;
@@ -1916,6 +1923,12 @@ sub read_hosts {
       do_log("DEBUG READHOSTSDB: Single mode server",4) if $g{debug};
       # Check if the hosts file even exists
       return %hosts if !-e $g{dbfile};
+
+      # Read SNMP V3 config file
+      my $configV3 ;
+      if ( -f $g{'configfileV3'} ) {
+        $configV3 = Config::Tiny->read( $g{'configfileV3'}, 'utf8' );
+      }
 
       # Hashes containing textual shortcuts for Xymon exception & thresholds
       my %thr_sc = ( 'r' => 'red', 'y' => 'yellow', 'g' => 'green', 'c' => 'clear', 'p' => 'purple', 'b' => 'blue' );
@@ -1979,6 +1992,13 @@ sub read_hosts {
                   my $type = $exc_sc{$sc};
                   $hosts{$name}{except}{$test}{$oid}{$type} = $val;
                }
+            }
+         }
+
+         # Version 3 config merge
+         if ( defined $configV3->{$name} ) {
+            foreach my $key ("SecName", "SecLevel", "AuthProto", "AuthPass", "PrivProto", "PrivPass") {
+               $hosts{$name}{$key} = $configV3->{$name}{$key} if defined $configV3->{$name}{$key} ;
             }
          }
 
@@ -2072,6 +2092,7 @@ sub usage {
    "\n" .
    "  Arguments:\n" .
    "   -c[onfigfile]  Specify config file location\n" .
+   "   -3             Specify config file location for SNMP v3 options\n" .
    "   -db[file]      Specify database file location\n" .
    "   -f[oregrond]   Run in foreground. Prevents running in daemon mode\n" .
    "   -h[ostonly]    Poll only hosts matching the pattern that follows\n" .
