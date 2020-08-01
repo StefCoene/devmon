@@ -38,7 +38,7 @@ $Data::Dumper::Sortkeys = 1 ; # Sort the keys in the output
 $Data::Dumper::Deepcopy = 1 ; # Enable deep copies of structures
 $Data::Dumper::Indent = 1 ;   # Output in a reasonable style (but no array indexes)
 
-use Tiny;
+use Config::Tiny;
 
 # Load initial program values; only called once at program init
 sub initialize {
@@ -49,7 +49,7 @@ sub initialize {
       'version'       => $_[0], # set in main script now
       'homedir'       => $FindBin::Bin,
       'configfile'    => "$FindBin::Bin/devmon.cfg",
-      '3'             => "$FindBin::Bin/devmonV3.cfg",
+      'configfileV3'  => "$FindBin::Bin/devmonV3.cfg",
       'dbfile'        => "$FindBin::Bin/hosts.db",
       'daemonize'     => 1,
       'initialized'   => 0,
