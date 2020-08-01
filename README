@@ -12,6 +12,14 @@ I changed this version of devmon and did the following:
 
 I hope that this will inspire the original author for ideas how devmon can be improved.
 
+2020-08-01
+==========
+- I merged the upstream changes
+- I added a ini style config file for SNMP v3 options: devmonV3.cfg
+   - example included with all the allowed options
+   - module Config::Tiny is used to parse this config file
+      - https://metacpan.org/pod/Config::Tiny
+      - apt-get install libconfig-tiny-perl
 
 Stef Coene
 
