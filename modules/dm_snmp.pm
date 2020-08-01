@@ -610,8 +610,9 @@ sub fork_sub {
       } elsif($data_in{ver} eq '3') {
          $snmpvars{Version} = 3 ;
          # We store the security name for v3 also in cid so we keep the same data format
-         $snmpvars{SecName}    = $data_in{cid} if defined $data_in{cid} ;
+         $snmpvars{SecName}   = $data_in{cid} if defined $data_in{cid} ;
 
+         $snmpvars{SecName}   = $data_in{SecName}   if defined $data_in{SecName};
          $snmpvars{SecLevel}  = $data_in{SecLevel}  if defined $data_in{SecLevel};
          $snmpvars{AuthProto} = $data_in{AuthProto} if defined $data_in{AuthProto};
          $snmpvars{AuthPass}  = $data_in{AuthPass}  if defined $data_in{AuthPass};
